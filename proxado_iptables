@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# Fichier contenant les domaines à bloquer
+DOMAIN_FILE="/path/to/blocked_domains.txt"
+
+# Fonction pour récupérer l'adresse IP d'un domaine via DNS
+resolve_ip() {
+    local domain=$1
+    dig +short $domain | grep -E '^[0-9.]+$'
+}
+
+# Heure actuelle
+HOUR=$(date +"%H")
+
+# Appliquer le blocage seulement de 20h à 5h
+if [[ $HOUR -ge 20 ]] || [[ $HOUR -lt 5 ]]; then
+    echo "Application du blocage pour les horaires 20h à 5h..."
+    
+    # Lire les domaines et appliquer les règles iptables
+    while IFS= read -r domain; do
+        if [[ ! -z "$domain" ]]; then
+            # Résoudre l'IP du domaine
+            for ip in $(resolve_ip $domain); do
+                echo "Blocage de $domain ($ip)"
+                
+                # Ajouter la règle iptables pour bloquer l'IP
+                iptables -A OUTPUT -p tcp -d $ip --dport 80 -j REJECT
+                iptables -A OUTPUT -p tcp -d $ip --dport 443 -j REJECT
+            done
+        fi
+    done < "$DOMAIN_FILE"
+else
+    echo "Les sites ne sont pas bloqués en dehors des heures définies."
+fi
